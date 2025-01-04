@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="X-UA-Compatible" content="ie=edge" />
+    <title>Magic Circle</title>
+</head>
+
+<body>
+    <main style="display: flex;">
+        <div id="svg_container" style="width:512px; height:512px; border:1px black solid; flex-grow: 0">
+            <svg id="magic_circle" xmlns="http://www.w3.org/2000/svg" fill="none" width="100%" height="100%"
+                viewBox="0 0 1000 1000" stroke="black">
+            </svg>
+        </div>
+        <div id="options_root" style="display: flex; flex-direction: column; flex-grow: 1; padding: 10px">
+            <div style="padding-bottom:10px">
+                <input id="circle_button" type="button" value="New Circle">
+                <input id="poly_button" type="button" value="New Poly">
+            </div>
+            <div style="padding-bottom:10px">
+                <input disabled id="up_button" type="button" value="Up Layer">
+                <input disabled id="down_button" type="button" value="Down Layer">
+            </div>
+            <div id="generic_options" style="display: none; flex-direction: column">
+                <label for="generic_fill">Fill Color</label>
+                <input id="generic_fill" type="input" value="none">
+                <label for="generic_stroke">Line Color</label>
+                <input id="generic_stroke" type="input" value="black">
+                <label for="generic_thick">Line Thickness</label>
+                <input id="generic_thick" type="range" min="1" max="20" step="1">
+                <label for="generic_count">Count</label>
+                <input id="generic_count" type="range" min="1" max="8" step="1">
+                <label for="generic_gap">Gap</label>
+                <input id="generic_gap" type="range" min="0" max="490" step="1">
+                <label for="generic_angle">Angle</label>
+                <input id="generic_angle" type="range" min="0" max="360" step="7.5">
+            </div>
+            <div id="circle_options" style="display: none; flex-direction: column">
+                <label for="circle_radius">Radius</label>
+                <input id="circle_radius" type="range" min="20" max="490" step="1">
+            </div>
+            <div id="polygon_options" style="display: none; flex-direction: column">
+                <label for="polygon_sides">Sides</label>
+                <input id="polygon_sides" type="range" min="3" max="20" step="1">
+                <label for="polygon_size">Size</label>
+                <input id="polygon_size" type="range" min="20" max="490" step="1">
+                <label for="polygon_rotation">Rotation</label>
+                <input id="polygon_rotation" type="range" min="0" max="360" step="7.5">
+            </div>
+            <div>
+                <input disabled id="delete_button" type="button" value="Delete Shape">
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const svgns = "http://www.w3.org/2000/svg";
+        const halfSize = 500;
+
+        let shapes = {}
+        let currentShape;
+
+        delete_button.addEventListener("click", () => {
+            const oldParent = currentShape.parent;
+            selectShape(undefined);
+            oldParent.remove();
+        })
+
+        up_button.addEventListener("click", () => {
+            currentShape.parent.parentNode.insertBefore(
+                currentShape.parent,
+                currentShape.parent.nextElementSibling,
+            );
+            selectShape(currentShape);
+        })
+
+        down_button.addEventListener("click", () => {
+            currentShape.parent.parentNode.insertBefore(
+                currentShape.parent,
+                currentShape.parent.previousElementSibling,
+            );
+            selectShape(currentShape);
+        })
+
+        poly_button.addEventListener("click", () => {
+            let newParent = document.createElementNS(svgns, "g");
+            newParent.style.cursor = "pointer"
+            magic_circle.appendChild(newParent);
+            shapes[newParent] = {
+                parent: newParent,
+                type: "polygon",
+                fill: "none",
+                stroke: "black",
+                thick: 5,
+                gap: 0,
+                count: 1,
+                angle: 0,
+                sides: 3,
+                size: 250,
+                rotation: 0,
+            }
+            selectShape(shapes[newParent]);
+            apply();
+        })
+
+        async function delay(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
+        }
+
+        circle_button.addEventListener("click", async () => {
+            await delay(500);
+
+            let newParent = document.createElementNS(svgns, "g");
+            newParent.style.cursor = "pointer"
+            magic_circle.appendChild(newParent);
+            shapes[newParent] = {
+                parent: newParent,
+                type: "circle",
+                fill: "none",
+                stroke: "black",
+                thick: 5,
+                gap: 0,
+                count: 1,
+                angle: 0,
+                radius: 250,
+            }
+            selectShape(shapes[newParent]);
+            apply();
+        })
+
+        for (let inputNode of options_root.getElementsByTagName("input")) {
+            const idSplit = inputNode.id.split("_")
+            const key = idSplit[1]
+            inputNode.addEventListener("input", ev => {
+                currentShape[key] = parseFloat(ev.target.value)
+                if (isNaN(currentShape[key])) {
+                    currentShape[key] = ev.target.value
+                }
+                apply();
+            })
+        }
+
+        function apply() {
+            if (currentShape == undefined) {
+                return;
+            }
+
+            currentShape.parent.setAttribute("stroke-width", currentShape.thick);
+            currentShape.parent.setAttribute("fill", currentShape.fill);
+            currentShape.parent.setAttribute("stroke", currentShape.stroke);
+
+            let i = 0;
+            for (; i < currentShape.count; i++) {
+                let shape;
+                if (currentShape.parent.childElementCount <= i) {
+                    shape = document.createElementNS(svgns, currentShape.type);
+                    const clickShape = currentShape;
+                    shape.addEventListener("click", (ev) => {
+                        selectShape(clickShape);
+                    });
+                    currentShape.parent.appendChild(shape);
+                } else {
+                    shape = currentShape.parent.children[i];
+                }
+
+                const shapeAngle = ((i / currentShape.count) * 360 + currentShape.angle) * Math.PI / 180;
+
+                switch (currentShape.type) {
+                    case "circle":
+                        shape.setAttribute("r", currentShape.radius);
+                        shape.setAttribute("cx", halfSize + Math.cos(shapeAngle) * currentShape.gap);
+                        shape.setAttribute("cy", halfSize + Math.sin(shapeAngle) * currentShape.gap);
+                        break;
+                    case "polygon":
+                        const cx = halfSize + Math.cos(shapeAngle) * currentShape.gap;
+                        const cy = halfSize + Math.sin(shapeAngle) * currentShape.gap;
+                        let points = []
+                        for (let s = 0; s < currentShape.sides; s++) {
+                            const pointAngle = ((s / currentShape.sides + i / currentShape.count) * Math.PI * 2) + (currentShape.rotation * Math.PI / 180);
+                            points.push(cx + Math.cos(pointAngle) * currentShape.size);
+                            points.push(cy + Math.sin(pointAngle) * currentShape.size);
+                        }
+
+                        shape.setAttribute("points", points.join(" "))
+                        break;
+                }
+            }
+
+            for (; i < currentShape.parent.childElementCount; i++) {
+                currentShape.parent.removeChild(currentShape.parent.children[i]);
+            }
+        }
+
+        function selectShape(newShape) {
+            if (currentShape !== undefined) {
+                // currentShape.parent.setAttribute("stroke", "black")
+            }
+
+            currentShape = newShape;
+
+            if (currentShape !== undefined) {
+                // currentShape.parent.setAttribute("stroke", "green")
+
+                for (let k of Object.keys(currentShape)) {
+                    if (k === "parent" || k === "type") {
+                        continue;
+                    }
+
+                    let shapeInput = document.getElementById(`${currentShape.type}_${k}`);
+                    if (shapeInput === null) {
+                        shapeInput = document.getElementById(`generic_${k}`);
+                    }
+
+                    shapeInput.value = currentShape[k]
+                }
+
+                generic_options.style.display = "flex";
+                circle_options.style.display = currentShape.type == "circle" ? "flex" : "none";
+                polygon_options.style.display = currentShape.type == "polygon" ? "flex" : "none";
+                delete_button.disabled = false
+                up_button.disabled = currentShape.parent.parentNode.lastElementChild === currentShape.parent;
+                down_button.disabled = currentShape.parent.parentNode.firstElementChild === currentShape.parent;
+            } else {
+                generic_options.style.display = "none";
+                circle_options.style.display = "none";
+                polygon_options.style.display = "none";
+                delete_button.disabled = true
+                up_button.disabled = true
+                down_button.disabled = true
+            }
+        }
+
+        // just to reset everything
+        selectShape(undefined)
+    </script>
+</body>
+
+</html>
